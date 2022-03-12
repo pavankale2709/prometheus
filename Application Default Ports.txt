@@ -1,0 +1,9 @@
+Prometheus port: 9090
+Node exporter port: 9100
+WMI exporter port: 9182
+AlertManager port: 9093
+Blackbox exporter port: 9115
+Pushgateway port: 9091
+Cloudwatch exporter port: 9106 - Start at this port explicitly
+MySql exporter port: 9104
+Graphana port: 3000

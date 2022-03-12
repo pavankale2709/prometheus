@@ -1,0 +1,21 @@
+Download cloudwatch jar
+wget -O cloudwatch_exporter.jar http://search.maven.org/remotecontent?filepath=io/prometheus/cloudwatch/cloudwatch_exporter/0.8.0/cloudwatch_exporter-0.8.0-jar-with-dependencies.jar
+
+Install java
+sudo apt-get install -y openjdk-11-jre-headless
+
+sudo mkdir -p ~/.aws/
+
+sudo vim ~/.aws/credentials
+
+[default]
+aws_access_key_id=YOUR_ACCESS_KEY
+aws_secret_access_key=YOUR_SECRET_ACCESS_KEY
+
+Prometheus.yml file
+- job_name: cloudwatch
+    static_configs:
+    - targets: ['localhost:9106']
+	
+To run Cloudwatch
+/usr/bin/java -jar cloudwatch_exporter.jar 9106 cloudwatchexporter/cloudwatchexporter.yml

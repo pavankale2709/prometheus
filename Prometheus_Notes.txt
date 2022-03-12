@@ -1,0 +1,219 @@
+-Monitoring is a systematic process of collecting and recording the activities taking place in a target project, programme or service and then using that recorded values to check if the targets are reaching their objectives or not.
+-An alert is an outcome of an alerting rule in Prometheus that is actively firing. Alerts are sent from Prometheus to AlertManager.
+-Target is an object whose metrics you want to scrape and monitor.
+-Instance is an endpoint you scrape.
+-Job is a collection of targets/instances with the same purpose. For example, monitoring a group of similar processes replicated for scalability or reliability, is called a job.
+-A sample is a single value of the retrieved metric at a point of time, in time series.
+
+-‘up’ is a special metric that outputs the list of targets scraped by Prometheus.  
+
+-An exporter is a software or number of libraries and servers that help in exporting existing metrics from third-party systems (like Linux or Windows OS) in the same format as of Prometheus metrics. Exporters are useful for cases where it is not feasible to instrument a given system with Prometheus metrics directly.
+-The Node exporter is a Prometheus exporter for hardware and OS metrics exposed by Unix [*NIX] kernels. The Node exporter exposes kernel-level and machine-level metrics on Unix systems, such as Linux.
+-WMI exporter (Windows Management Instrumentation)
+-Data types in PromQL
+	-Instance vector
+		-A set of time series containing a single sample for each time series and all sharing the same timestamp.
+		-An instant vector is a set of zero, or more time series, where each time series will have one sample and a sample contains both a value and a timestamp.
+		-Ex: prometheus_http_requests_total
+	-Range vector
+		-Is a set of time series containing a range of data points over time for each time series.
+		-Unlike an instant vector which returns one sample per time series, a range vector can return many samples for each time series.
+		-Ex: prometheus_http_requests_total[1m]
+	-Scalar
+		-Scalars are single numbers with no dimensionality. They are just a simple numeric floating-point value that do not have any labels, they are just numbers.
+	-String	
+		-String is simply a string value without any labels.
+		
+-rate() function is mainly used with Counter type metrics where it calculates the per-second average rate increment of the time series in the range vector.
+	-In simpler words, this means that rate function returns how fast a counter is increasing per second for each time series in the range vector passed to it.
+	-rate function outputs the rate at which particular counter is increasing.
+-irate() function
+	-rate() function that calculates the per-second ‘average’ rate of increment over time, the irate() function calculates the ‘instant’ rate of increment of the time series in the range vector. Basically, irate function calculates the rate based on the last two data points gathered.
+	-Generally, the rate function is used when you are graphing the slow-moving counters. On the other hand, irate should be used when you are graphing the volatile, or fast-moving counters.
+	
+-Gauge type metrics i.e., the metrics whose values can go up or down.
+	-changes()
+	-deriv() - how quickly a Gauge is changing
+		-The deriv function estimates the slope of each time series in a range vector and calculates the per-second derivative of the time series in a range vector.
+	-predict_linear()
+		-It predicts the future value of a Gauge by checking the previous patterns of a metric in the time range you provide.
+		
+-Aggregation over time
+	-max_over_time()
+	-min_over_time()
+	-avg_over_time()
+	
+-Prometheus client library metric types
+	-Counter
+		-A counter is a cumulative metric that represents a single monotonically increasing counter whose value can only increase or it can be reset to zero on restart.
+		-Methods: inc()
+	-Gauge
+		-Gauge is a metric that represents a single numerical value that can arbitrarily go up and down. Basically, Gauges represent a snapshot of some current state.
+		-Methods: inc(), dec(), set()
+	-Summary
+		-A summary samples observations, observations like request durations i.e. how long your application took to respond to a request, its latency and response sizes etc. Summary track the size and number of events.
+		-Method: observe() -> expose 2 metrics <basename>_sum, <basename>_count
+	-Histogram
+		-A histogram samples observation like request durations or response sizes but histogram count these observations into configurable buckets.
+		-Method: observe() -> expose 2 metrics <basename>_sum, <basename>_count
+		-The main purpose of using histogram is calculating quantiles.
+
+-If applicable, when exposing the time series for Counter type metric, a ‘_total’ suffix is added automatically in the exposed metric. 
+
+-What to instrument?
+	-Online-Serving Systems: 
+		-Request rate, Latency, Error rate, In-progress requests
+	-Offline-Processing Systems: 
+		-Track the items coming in, How many are in progress, Last time you processed something, How many items were sent out, Errors that occur
+	-Batch jobs
+		-Push Gateway used to scrape batch jobs
+		-How long it took to run, Overall runtime, Time at which job last completed
+	-Libraries
+		-Internal errors, Latency time within the library itself, overall external application query count and latency
+		
+-Recording rules
+	-Recording rules allow you to precompute frequently needed or compute expensive expressions and save their results as a new set of time series in Prometheus storage
+	-Prometheus supports two types of rules which may be configured and then evaluated at regular intervals: 
+		-Recording rules
+			- With recording rules, we generally create a separate rules file in YAML and inside it, we define the PromQL expressions that we want to get evaluate regularly. Where the expression can be some long compute expensive metric or even it can be an expression that you frequently need.
+			-In that rules file, along with the expression to evaluate, we also provide it some name (the record name) through which we can access that expression in future.
+			-Now after getting that file ready, we feed that rules file to Prometheus server. On receiving that file, Prometheus evaluate those PromQL expressions ‘regularly’ after the specified time interval and stores the evaluated result as a new time series with the new metric name into its storage. Now Since a new metric got stored in Prometheus storage engine, whenever you wish to access it, you can simply access it by the metric name and can even apply further operations or aggregations on it.
+			-Benefits:
+				-Querying the precomputed result is often much faster than executing the same original expression every time it is needed
+				-Using recording rules becomes very helpful for dashboards, which need to query the same expression regularly every time they refresh.
+			-Naming recordign rules
+				-Recording rules should be of the general form: level:metric:operations (Ex: job:node_cpu_seconds:avg_idle)
+				-level: Level represents the aggregation level of the metric and labels of the rule output.
+				-metric: Metric is just the same metric name under expression
+				-operations: Operations is a list that specifies the list of operations that were applied to the metric under evaluation. And if you have applied multiple operations to your metric, then newest operation will come first.
+			-Check syntax of rules file: ./promtool check rules my-rules.yml
+			-How to wisely use recording rules
+				-Avoid using rules for long vector range, as such queries tend to be expensive, and running them regularly can cause performance problems
+				-Use rules while storing metrics data for the long-term basis (for over months or years)
+				-Define rules in different groups based on the jobs
+				-Follow the naming conventions while naming recording rules 
+		-Alerting rules
+			-Prometheus allows you to define some conditions/logics in the form of PromQL expressions that continuously gets evaluated and when those conditions are met, they become alerts.
+			-Prometheus just regularly evaluates the conditions and rules provided by you and after evaluation fires the alerts. It is not responsible for sending out notifications. To handle the sending notifications part, we have a separate component – the Alertmanager.
+			-On getting the alerts from Prometheus, Alertmanager is the one who manages those alerts, apply few operations on them and finally sends the notifications to their respective recipient via email, chat messages, etc
+			-Flow:
+				-First of all Prometheus server reads the alerts defined in the yaml file. And if any of the alert conditions is met, the corresponding alert is fired and details of it is send to the Alertmanager. 
+				-Upon receiving the firing alerts, the Alertmanager converts those alerts into Notifications and sends out those notifications to their respective receivers through channels like Gmail, pagerduty, slack etc. 
+				-This is just the big picture of the whole flow as internally before sending out the notification, alert manager can perform a whole set of grouping, filtering, inhibiting, silencing the alert etc.
+			-The ‘for’ property in your alerting rule instructs Prometheus to hold the first cycle alert in Pending state for at least the specified time period before firing it.
+
+-Alertmanager
+	-Alertmanager is a tool that takes the firing alerts from all of Prometheus servers, and convert them into notifications. It takes care of deduplicating, grouping, inhibition, silencing and routing them to the correct receiver integration such as email, PagerDuty, OpsGenie, WeChat etc.
+	-"amtool" is used to check alert manager configuration file
+		-./amtool check-config <path to alertmanager.yml> 
+	-Routing tree
+		-By building routing tree, We instruct the alert manager to apply some filtering conditions on the incoming alerts. For example, let's say if the incoming alert has a label value X, then it should be routed to this receiver or if the alert has label Y, then it should be routed to some other receiver.
+	-Visual of routing tree: https://www.prometheus.io/webtools/alerting/routing-tree-editor/
+	-Grouping of all alerts of one route one single group becomes unmanageable when you have a long list of fighting alerts within a single route.
+		-To avoid this, we can groups these alerts based on some condition into various groups and then send one e-mail per group. In this way, the number of alerts he or she has to scan becomes enormously less.
+		-By default, the grouping is done by the root of the tree. All the alerts that should be sent to a single root in the tree are grouped under one e-mail. To change this default behavior of a alert manager, alert manager has provided us with a field or property called group_by. Basically group_by allows you to specify a list of labels with respect to which you wish to group the alert notifications in a single route.
+	-Throttling Alerts
+		-Throttling means to control the flow of alert notifications.
+		-Two throttle notifications, the alert manager has provided us with two settings:
+			-group_wait
+				-How long to initially wait to send a notification for the group.
+				-With group_wait, we instruct the alert manager that when you receive a firing alert for some group, then don't just send a notification of that alert immediately, rather wait for the specified time in a hope to receive more alerts within that same group. Doing this, we would be controlling the number of emails sent to a receiver.
+				-Default = 30 seconds
+			-group_interval
+				-How long to wait before sending a new notification about the new alert being added to a group for which an initial notification has already been sent.
+				-Default = 5 minutes
+			-repeat_interval
+				-How long to wait before sending a notification again, if it has already sent a notification for that alert.
+				-Default = 4 hours
+	-Inhibiting the Alerts
+		-Inhibition is a feature that allows you to mute certain set off a alerts if some specified alert are currently in fighting state.
+		-Basically, by defining inhibition rules, we define a criteria.
+	-Silencing the Alerts
+		-Silencing is a common concept in monitoring or alerting systems that allow us to ignore certain alerts and notifications from going out for a while, as you are already aware of that problem.
+		-Silences are defined at runtime and are added via the alert managers web interface.
+		-The alert manager does not support routing based on time. So to make the alerts to be sent at only certain times of the day, we have to handle it at Prometheus side by defining date functions in the alerting rule file (expr).
+	-continue clause (continue: true)
+		-The default behavior of the route matching mechanism is built in a way that any alert while traversing the route entry halts after it finds its first receiver and it won't try to match against subsequent siblings.
+		-To change this default behavior and to make the alert to traverse along, to find more matching routes, we are provided with a setting continue. As the name itself implies, with continue, we instruct to continue the matching process, even if the alert has already found a matching route.
+		-By using continue, an alert can be a part of multiple routes and thus the same alert can be received by multiple receivers.
+
+-stress-ng tool
+	-Used to increase cpu usage, memory usage, disk usage etc. of the system. Increases compute stress on the system.
+	-Pre-allocate space to a file: fallocate -l 15G temp_file
+
+-Reloading Prometheus configuration without killing prometheus process
+	-SIGNUP signal
+		-ps ax | grep prometheus
+		-kill -HUP <process_id>
+	-Post request to reload handler
+		-curl -X POST http://localhost:9090/-/reload
+		-If you ger error "Lifecycle API not enabled", start the prometheus as: ./prometheus --web.enable-lifecycle
+			
+-PagerDuty is an incident management platform that provides notifications on call scheduling and other functionalities to help teams detect and fix infrastructure problems quickly. It's a tool that basically collects alerts from your monitoring systems and alerts an on-duty the engineer if there is any problem.
+	-Service in PagerDuty represents a component or a piece of infrastructure a team operates and monitors.
+	-PagerDuty url: https://events.pagerduty.com/v2/enqueue
+
+-Blackbox Exporter
+	-https://github.com/prometheus/blackbox_exporter
+	-With blackbox monitoring, we monitor the systems from outside with having no special knowledge of their internals.
+	-To carry out the blackbox monitoring in such systems, Prometheus has provided us with its official exporter called Blackbox Exporter.
+	-By definition, the Blackbox exporter is a probing exporter that allows you to monitor network endpoints such as HTTP, HTTPS, DNS, ICMP or TCP.
+	-On probing, the blackbox exporter returns a detailed metrics about the request, including whether or not it was successful and how long it took to receive a response.
+	-Use cases
+		-We use this exporter where we don't have knowledge of system internals. 
+		-The blackbox exporter is used to measure response times.
+		-As network engineer, to resolve the DNS response times to diagnose network latency issues.
+		-As application developer, to check the availability of your services, their uptime, network health and other things
+	-Prometheus request to blackbox exporter: http://localhost:9115/probe?target=<target_url>&module=<module_name>
+	-TCP probe allows you to check TCP services, whether the TCP port is open or not.
+	-ICMP means Internet control message protocol. ICMP in context of the blackbox exporter is the echo reply and echo request messages that interest you, more commonly known as ping.
+	-The DNS probe is primarily used for DNS testing and are intended to verify that the DNS servers are working with the expected results.
+
+-Pushgateway
+	-Prometheus pulls the matrics from its targets. There exists some jobs for which this pull approach doesn't work such as cronjobs. Since these jobs are not continuously running and runs only for a short period of time, so Prometheus con't scrape it.
+	-The Pushgateway is a matrics cache for service-level batch-jobs. It is used to handle the exposition of metrics that have been pushed from short-lived jobs such as Cron or batch jobs.
+	-Flow of collecting metrics
+		-Batch jobs push its metrics into Pushgateway before they exit. The metrics pushed in Pushgateway are exactly the same as they would present in a permanently running program.
+		-After the metrics have come to the intermediary Pushgateway, Prometheus scrape these metrics from Pushgateway with its default pool approach as if it was a normal target.
+	-To push metric to Pushgateway, make http POST request to pushgateway endpoint like this
+		-http://<PushG_address>:<PushG_port>/metrics/job/<job_name>/[<label_name>/<label_value>]/[<label_name1>/<label_value1>]/.../[<label_nameN>/<label_valueN>]
+		-Ex: echo "demo_metric 12345" | curl --data-binary @- http://localhost:9091/metrics/job/demo_pg_job/instance/demo_instance/event/add
+	-In order to avoid applications interfering with labels, by default, the label from prometheus configuration file wins as they have more priority than the others. If there is conflict between labels in prometheus configuration file and labels pushed (instrumentation labels) using above api, pushed label values will be renamed and prepended with keyword "exporter_". If you've want the instrumentation label to win and override the target labels, you can set the property called honor_labels=true.
+	-Pushgateway Pitfalls
+		-Availability: If a Pushgateway is collecting metrics from different multiple instances and by chance it goes down. Then you will lose monitoring for all those targets linked to that Pushgateway.
+		-You lose Prometheus's automatic instance health monitoring via the up metric (generated on every scrape)
+		-Manual deletion: You have to manually delete the metrics from Pushgateway's API for which source may have got disappeared.
+
+-Service Discovery
+	-Service Discovery is a mechanism that allows you to automatically discover and monitor your targets and services.
+	-Enables you to provide the centralized information about your machines and services from whichever database it is stored in.
+	-Service discovery allows the discovering of machines and/or services running somewhere even in the multiple organizations.
+	-Prometheus contains built-in integrations for many service discovery systems - Consul, cluster managers - Kubernetes, and cloud providers - Azure, Amazon EC2 etc.
+	-File-based service discovery mechanism allows you to list down the targets in service information JSON file.
+	-Categories
+		-Top-Down: Where the service discovery knows what all instances are there in that environment. Ex: Amazon EC2
+		-Bottom-Up: Where the service instances register with the service discovery mechanism. Ex: Consul
+	-Types of labels
+		-Discovered labels are the labels that are automatically generated and comes from service discovery. These labels are very helpful and are available to you when you do the target relabeling.
+		-Target labels are what we configure in application or in exporter themselves. Targeted labels allows you to aggregate targets performing the same role or the targets which are in the same environment.
+	-File based SD (file_sd_config -> files): yml or json format
+		-The targets from service discovery file are auto-read by Prometheus and then scrape without reloading the Prometheus instance.
+		-Whenever there is any in your environment, a process or a demon will write those changes from your dynamic environment regularly to a service discovery file. And any update found in this file will automatically sent to your prometheus environment.
+
+-Custom exporter
+	-Prometheus gives you the power to create your own exporter or custom collectors using which you can monitor and expose Prometheus metrics from almost any of your service.
+
+-Running Queries through API:
+	-Run Query: GET http://localhost:9090/ap1/v1/query?query=up
+	-List discovered targets: GET http://localhost:9090/ap1/v1/targets (?state=dropped/active)
+	-List rules: GET http://localhost:9090/ap1/v1/rules (?type=record/alert)
+	-List alerts: GET http://localhost:9090/ap1/v1/alerts
+	-Status: GET http://localhost:9090/ap1/v1/status/runtimeinfo (/status/buildinfo)
+	
+	
+-Grafana
+	-Grafana is a popular OpenSource visualization and analytics tool that allows you to query and visualize the metrics no matter where they are stored in. Using Grafana, you can build beautiful dashboards for many different monitoring and non-monitoring systems, including Prometheus, Graphite Influx DB, ElasticSearch, and PostgreSQL. It basically gets the timeseries data from these systems and turn them into beautiful graphs and visualizations.
+	-Combination of Prometheus and Grafana is becoming a complete monitoring stack used by DevOps team.
+	-
+
+

@@ -1,0 +1,6 @@
+region: ap-south-1
+metrics:
+  - aws_namespace: EC2
+    aws_metric_name: CPUUtilization
+    aws_dimanetions: [InstanceId]
+    aws_statistics: [Average]
